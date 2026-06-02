@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gán nhãn — MQOps Studio</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.17.0/tabler-icons.min.css">
+<link rel="stylesheet" href="ui/style.css">
+<style>
+.cls-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.cls-btn { padding: 7px 14px; border-radius: 999px; border: 0.5px solid var(--border);
+  background: var(--surface); font-size: 13px; font-weight: 500; cursor: pointer;
+  font-family: inherit; }
+.cls-btn.active { background: var(--green-bg); color: var(--green-tx);
+  border-color: var(--green-tx); }
+.canvas-wrap { background: #f5f5f7; border-radius: 14px; padding: 0;
+  margin-bottom: 14px; display: flex; align-items: center; justify-content: center;
+  min-height: 360px; max-height: 70vh; overflow: hidden; position: relative; }
+@media (prefers-color-scheme: dark) { .canvas-wrap { background: #1c1c1e; } }
+.canvas-host { position: relative; max-width: 100%; max-height: 70vh;
+  display: inline-block; line-height: 0; }
+.canvas-host img { display: block; max-width: 100%; max-height: 70vh; }
+.canvas-host svg { position: absolute; inset: 0; width: 100%; height: 100%;
+  cursor: crosshair; }
+.strip { display: grid; grid-template-columns: repeat(auto-fill,minmax(56px,1fr));
+  gap: 6px; padding: 10px; background: var(--surface-2); border-radius: 10px;
+  max-height: 180px; overflow-y: auto; }
+.tn { aspect-ratio: 1; background: var(--surface); border-radius: 6px;
+  border: 0.5px solid var(--border); cursor: pointer; position: relative;
+  overflow: hidden; }
+.tn img { width: 100%; height: 100%; object-fit: cover; }
+.tn.cur { border: 2px solid var(--accent); }
+.tn .dot { position: absolute; top: 3px; right: 3px; width: 10px; height: 10px;
+  border-radius: 50%; background: #1D9E75; border: 1.5px solid #fff; }
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px;
+  flex-wrap: wrap; }
+.proj-card { padding: 14px 18px; cursor: pointer;
+  border-bottom: 0.5px solid var(--border); }
+.proj-card:last-child { border-bottom: none; }
+.task-card { background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: 12px; padding: 16px; cursor: pointer; text-align: center; }
+.task-card.sel { border: 2px solid var(--accent); }
+.cls-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr));
+  gap: 10px; margin-bottom: 18px; }
+.cls-big { background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: 12px; padding: 18px; cursor: pointer; text-align: center;
+  font-size: 15px; font-weight: 500; font-family: inherit;
+  transition: border-color .2s; }
+.cls-big:hover { border-color: var(--accent); }
+.cls-big.cur { background: var(--green-bg); color: var(--green-tx);
+  border-color: var(--green-tx); }
+.cls-big .key { font-size: 11px; color: var(--tx-3); margin-top: 4px;
+  font-weight: 400; }
+.cls-big.cur .key { color: var(--green-tx); opacity: 0.7; }
+.tn .tag { position: absolute; bottom: 2px; left: 2px; right: 2px;
+  font-size: 9px; color: #fff; padding: 1px 3px; border-radius: 3px;
+  text-align: center; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div id="homeView">
+  <div class="hero">
+    <div><h1>Gán nhãn</h1>
+      <p>Kéo thả ảnh, khoanh vùng hoặc chọn loại, lưu — không cần học công cụ chuyên</p></div>
+  </div>
+  <p class="section-label">Dự án hiện có</p>
+  <div class="card" id="projList" style="padding:0;overflow:hidden;margin-bottom:14px">
+    <div class="empty">Đang tải…</div>
+  </div>
+  <button class="btn primary" onclick="openNewProject()">
+    <i class="ti ti-plus"></i> Tạo dự án mới</button>
+</div>
+
+<div id="newView" style="display:none;max-width:560px">
+  <div class="back" onclick="goHome()"><i class="ti ti-arrow-left"></i>Quay lại</div>
+  <h1 style="font-size:22px;font-weight:600;margin:0 0 16px">Tạo dự án gán nhãn</h1>
+
+  <div style="margin-bottom:16px">
+    <label style="font-size:13px;color:var(--tx-2);display:block;margin-bottom:8px">Loại bài toán</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="task-card sel" id="taskDetect" onclick="pickTask('detect')">
+        <i class="ti ti-rectangle" style="font-size:22px;color:var(--accent)"></i>
+        <div style="font-weight:500;margin-top:6px">Nhận diện vật thể</div>
+        <div style="font-size:12px;color:var(--tx-3);margin-top:2px">Vẽ vùng quanh từng vật</div>
+      </div>
+      <div class="task-card" id="taskClassify" onclick="pickTask('classify')">
+        <i class="ti ti-photo-search" style="font-size:22px;color:var(--accent)"></i>
+        <div style="font-weight:500;margin-top:6px">Phân loại ảnh</div>
+        <div style="font-size:12px;color:var(--tx-3);margin-top:2px">Gán loại cho cả ảnh</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:14px">
+    <label style="font-size:13px;color:var(--tx-2);display:block;margin-bottom:6px">Tên dự án</label>
+    <input id="newName" placeholder="Ví dụ: Lỗi sản phẩm A" style="width:100%">
+  </div>
+  <div style="margin-bottom:14px">
+    <label style="font-size:13px;color:var(--tx-2);display:block;margin-bottom:6px">Các loại cần nhận (mỗi loại một dòng)</label>
+    <textarea id="newClasses" placeholder="vết xước&#10;vết lõm&#10;vết nứt"
+      style="width:100%;min-height:120px;padding:10px;border-radius:8px;
+        border:0.5px solid var(--border);background:var(--surface);
+        color:var(--tx-1);font-family:inherit;font-size:14px"></textarea>
+  </div>
+  <button class="btn primary" onclick="createProject()">Tạo</button>
+</div>
+
+<div id="projView" style="display:none">
+  <div class="back" onclick="goHome()"><i class="ti ti-arrow-left"></i>Quay lại</div>
+  <h1 id="pName" style="font-size:22px;font-weight:600;margin:0 0 4px"></h1>
+  <p id="pSub" style="font-size:13px;color:var(--tx-3);margin:0 0 18px"></p>
+
+  <div class="cls-bar" id="clsBar"></div>
+
+  <div class="canvas-wrap" id="canvasWrap">
+    <div class="empty" style="padding:60px 20px">
+      Chưa có ảnh. Tải ảnh lên để bắt đầu.</div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn primary" onclick="saveAndNext()" id="btnSave">
+      <i class="ti ti-check"></i> Lưu và ảnh tiếp</button>
+    <button class="btn" onclick="undoBox()">
+      <i class="ti ti-arrow-back-up"></i> Xoá box vừa vẽ</button>
+    <label class="btn" style="cursor:pointer">
+      <i class="ti ti-upload"></i> Thêm ảnh
+      <input type="file" id="upInput" multiple accept="image/*" hidden
+        onchange="uploadImages(event)"></label>
+    <button class="btn" onclick="deleteCurrentImage()" style="color:#c0392b">
+      <i class="ti ti-trash"></i> Xoá ảnh</button>
+    <span id="pProg" style="margin-left:auto;font-size:12px;color:var(--tx-3)"></span>
+  </div>
+
+  <p class="section-label">Tất cả ảnh</p>
+  <div class="strip" id="strip"></div>
+</div>
+
+<div id="clsView" style="display:none">
+  <div class="back" onclick="goHome()"><i class="ti ti-arrow-left"></i>Quay lại</div>
+  <h1 id="cName" style="font-size:22px;font-weight:600;margin:0 0 4px"></h1>
+  <p id="cSub" style="font-size:13px;color:var(--tx-3);margin:0 0 18px"></p>
+
+  <div class="canvas-wrap" id="cPhoto"
+    style="min-height:340px;align-items:center;justify-content:center">
+    <div class="empty" style="padding:60px 20px">
+      Chưa có ảnh. Tải ảnh lên để bắt đầu.</div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn" onclick="prevImage()"><i class="ti ti-chevron-left"></i></button>
+    <button class="btn" onclick="nextImage()">Ảnh tiếp<i class="ti ti-chevron-right"></i></button>
+    <label class="btn" style="cursor:pointer">
+      <i class="ti ti-upload"></i> Thêm ảnh
+      <input type="file" id="upInputC" multiple accept="image/*" hidden
+        onchange="uploadImages(event)"></label>
+    <button class="btn" onclick="deleteCurrentImage()" style="color:#c0392b">
+      <i class="ti ti-trash"></i> Xoá ảnh</button>
+    <span id="cProg" style="margin-left:auto;font-size:12px;color:var(--tx-3)"></span>
+  </div>
+
+  <p class="section-label">Bấm loại của ảnh này</p>
+  <div class="cls-grid" id="cClsBig"></div>
+
+  <p class="section-label">Tất cả ảnh</p>
+  <div class="strip" id="cStrip"></div>
+</div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS=["#1D9E75","#D85A30","#378ADD","#BA7517","#D4537E","#7F77DD","#5F5E5A","#993556"];
+let proj=null, images=[], curIdx=-1, boxes=[], activeCls=0, imgEl=null, drawing=null;
+let imgW=0, imgH=0;  // kích thước pixel thật của ảnh (để vẽ overlay đúng tỉ lệ)
+let newTask="detect";
+
+function toast(m){const t=document.getElementById("toast");t.textContent=m;
+  t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2400);}
+
+function pickTask(t){
+  newTask=t;
+  document.getElementById("taskDetect").classList.toggle("sel",t==="detect");
+  document.getElementById("taskClassify").classList.toggle("sel",t==="classify");
+}
+
+function goHome(){
+  document.getElementById("homeView").style.display="block";
+  document.getElementById("newView").style.display="none";
+  document.getElementById("projView").style.display="none";
+  document.getElementById("clsView").style.display="none";
+  loadProjects();
+}
+function openNewProject(){
+  document.getElementById("homeView").style.display="none";
+  document.getElementById("newView").style.display="block";
+  pickTask("detect");
+}
+
+async function loadProjects(){
+  try{
+    const d=await(await fetch("projects")).json();
+    const box=document.getElementById("projList");
+    if(!d.projects||!d.projects.length){
+      box.innerHTML='<div class="empty">Chưa có dự án nào</div>';return;}
+    box.innerHTML=d.projects.map(p=>`
+      <div class="proj-card" onclick="openProject('${p.slug}')">
+        <div style="font-size:15px;font-weight:600">${p.name}</div>
+        <div style="font-size:12px;color:var(--tx-3);margin-top:2px">
+          ${p.classes.length} loại · ${p.labeled_count}/${p.image_count} ảnh đã gán</div>
+      </div>`).join("");
+  }catch(e){
+    document.getElementById("projList").innerHTML=
+      '<div class="empty">Không kết nối được</div>';
+  }
+}
+
+async function createProject(){
+  const name=document.getElementById("newName").value.trim();
+  const raw=document.getElementById("newClasses").value;
+  const classes=raw.split("\n").map(s=>s.trim()).filter(Boolean);
+  if(!name||!classes.length){toast("Cần nhập tên và ít nhất một loại");return;}
+  try{
+    const r=await fetch("projects",{method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name,classes,task:newTask})});
+    if(!r.ok){const e=await r.json();toast(e.detail||"Lỗi tạo dự án");return;}
+    const d=await r.json();
+    toast("Đã tạo dự án");
+    openProject(d.slug);
+  }catch(e){toast("Lỗi kết nối");}
+}
+
+async function openProject(slug){
+  document.getElementById("homeView").style.display="none";
+  document.getElementById("newView").style.display="none";
+  try{
+    proj=await(await fetch(`projects/${slug}`)).json();
+  }catch(e){toast("Lỗi tải dự án");return;}
+
+  if(proj.task==="classify"){
+    document.getElementById("projView").style.display="none";
+    document.getElementById("clsView").style.display="block";
+    document.getElementById("cName").textContent=proj.name;
+    renderClsBig();
+    renderClsStrip();
+    if(proj.images.length){curIdx=0;await loadClsImage();}
+    else{
+      document.getElementById("cPhoto").innerHTML=
+        '<div class="empty" style="padding:60px 20px">Chưa có ảnh. Tải ảnh lên để bắt đầu.</div>';
+      updateClsSub();
+    }
+    return;
+  }
+
+  document.getElementById("clsView").style.display="none";
+  document.getElementById("projView").style.display="block";
+  document.getElementById("pName").textContent=proj.name;
+  renderClassBar();
+  renderStrip();
+  if(proj.images.length){
+    curIdx=0;
+    await loadImage();
+  }else{
+    document.getElementById("canvasWrap").innerHTML=
+      '<div class="empty" style="padding:60px 20px">Chưa có ảnh. Tải ảnh lên để bắt đầu.</div>';
+    updateSub();
+  }
+}
+
+function renderClsBig(){
+  const box=document.getElementById("cClsBig");
+  const cur=proj.labels&&proj.labels[proj.images[curIdx]];
+  box.innerHTML=proj.classes.map((c,i)=>
+    `<button class="cls-big ${cur===i?"cur":""}" onclick="setClass(${i})">
+      ${c}<div class="key">phím ${i+1}</div></button>`).join("");
+}
+
+function renderClsStrip(){
+  const labels=proj.labels||{};
+  document.getElementById("cStrip").innerHTML=proj.images.map((img,i)=>{
+    const cls=labels[img];
+    const tag=cls!==undefined?
+      `<span class="tag" style="background:${COLORS[cls%COLORS.length]}">${proj.classes[cls]}</span>`:"";
+    return `<div class="tn ${i===curIdx?"cur":""}" onclick="jumpClsImage(${i})">
+      <img src="projects/${proj.slug}/image/${encodeURIComponent(img)}?_=${i}"
+        loading="lazy" onerror="this.style.display='none'">${tag}</div>`;
+  }).join("");
+  updateClsSub();
+}
+
+function updateClsSub(){
+  const lc=Object.keys(proj.labels||{}).length;
+  document.getElementById("cSub").textContent=
+    `${proj.classes.length} loại · ${lc}/${proj.images.length} ảnh đã gán`;
+  document.getElementById("cProg").textContent=
+    `Ảnh ${curIdx+1}/${proj.images.length}`;
+}
+
+async function loadClsImage(){
+  if(curIdx<0||!proj.images[curIdx])return;
+  const img=proj.images[curIdx];
+  const url=`projects/${proj.slug}/image/${encodeURIComponent(img)}?_=${Date.now()}`;
+  document.getElementById("cPhoto").innerHTML=
+    `<img src="${url}" alt="${img}" style="max-width:100%;max-height:340px;object-fit:contain">`;
+  renderClsBig();
+  renderClsStrip();
+}
+
+async function jumpClsImage(i){curIdx=i;await loadClsImage();}
+async function prevImage(){if(curIdx>0){curIdx--;await loadClsImage();}}
+async function nextImage(){if(curIdx<proj.images.length-1){curIdx++;await loadClsImage();}}
+
+async function setClass(cls){
+  if(curIdx<0)return;
+  const img=proj.images[curIdx];
+  try{
+    const r=await fetch(`projects/${proj.slug}/classify/${encodeURIComponent(img)}`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({cls})});
+    const d=await r.json();
+    if(!proj.labels)proj.labels={};
+    proj.labels[img]=cls;
+    toast(`${proj.classes[cls]} · ${d.labeled_count}/${proj.images.length}`);
+    if(curIdx<proj.images.length-1){curIdx++;await loadClsImage();}
+    else{renderClsBig();renderClsStrip();}
+  }catch(e){toast("Lỗi lưu");}
+}
+
+document.addEventListener("keydown",(e)=>{
+  if(document.getElementById("clsView").style.display!=="block")return;
+  if(!proj||proj.task!=="classify"||curIdx<0)return;
+  const n=parseInt(e.key,10);
+  if(n>=1&&n<=proj.classes.length){setClass(n-1);e.preventDefault();}
+  else if(e.key==="ArrowRight")nextImage();
+  else if(e.key==="ArrowLeft")prevImage();
+});
+
+function renderClassBar(){
+  const bar=document.getElementById("clsBar");
+  bar.innerHTML=proj.classes.map((c,i)=>
+    `<button class="cls-btn ${i===activeCls?"active":""}"
+      onclick="activeCls=${i};renderClassBar()">${c}</button>`).join("");
+}
+
+function renderStrip(){
+  const labeled=new Set(proj.labeled||[]);
+  document.getElementById("strip").innerHTML=proj.images.map((img,i)=>
+    `<div class="tn ${i===curIdx?"cur":""}" onclick="jumpTo(${i})">
+      <img src="projects/${proj.slug}/image/${encodeURIComponent(img)}?_=${i}"
+        loading="lazy" onerror="this.style.display='none'">
+      ${labeled.has(img)?'<span class="dot"></span>':""}</div>`).join("");
+  updateSub();
+}
+
+function updateSub(){
+  const lc=(proj.labeled||[]).length;
+  document.getElementById("pSub").textContent=
+    `${proj.classes.length} loại · ${lc}/${proj.images.length} ảnh đã gán`;
+  document.getElementById("pProg").textContent=
+    `${boxes.length} box trên ảnh này`;
+}
+
+async function jumpTo(i){curIdx=i;await loadImage();}
+
+async function loadImage(){
+  if(curIdx<0||!proj.images[curIdx])return;
+  const img=proj.images[curIdx];
+  const url=`projects/${proj.slug}/image/${encodeURIComponent(img)}?_=${Date.now()}`;
+  try{const r=await(await fetch(`projects/${proj.slug}/labels/${encodeURIComponent(img)}`)).json();
+    boxes=r.boxes||[];}
+  catch(e){boxes=[];}
+
+  const wrap=document.getElementById("canvasWrap");
+  wrap.innerHTML=`<div class="canvas-host" id="canvasHost">
+    <img id="curImg" src="${url}" alt="${img}">
+    <svg id="curSvg"></svg></div>`;
+  imgEl=document.getElementById("curImg");
+  imgEl.onload=()=>{drawBoxes();attachDrawHandlers();};
+  if(imgEl.complete)imgEl.onload();
+  renderStrip();
+  updateSub();
+}
+
+// Độ dày viền theo cạnh lớn của ảnh (đồng nhất giữa box cố định và box đang vẽ)
+function _strokeW(){ return Math.max(imgW, imgH) * 0.003; }
+
+function drawBoxes(){
+  const svg=document.getElementById("curSvg");
+  if(!svg)return;
+  // Dùng kích thước pixel thật của ảnh làm hệ toạ độ + giữ tỉ lệ → co giãn ĐỀU,
+  // nhờ vậy chữ không bị kéo méo (trước đây dùng viewBox 0 0 100 100 +
+  // preserveAspectRatio="none" nên chữ méo theo tỉ lệ khung ảnh).
+  imgW = imgEl?.naturalWidth || 100;
+  imgH = imgEl?.naturalHeight || 100;
+  svg.setAttribute("viewBox",`0 0 ${imgW} ${imgH}`);
+  svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+  const fs=Math.max(imgW,imgH)*0.022;   // cỡ chữ ~2.2% cạnh lớn
+  const sw=_strokeW();
+  const pad=fs*0.3, lh=fs*1.3;
+  svg.innerHTML=boxes.map((b,i)=>{
+    const c=COLORS[b.cls%COLORS.length];
+    const x=(b.cx-b.w/2)*imgW, y=(b.cy-b.h/2)*imgH;
+    const w=b.w*imgW, h=b.h*imgH;
+    const cn=proj.classes[b.cls]||`#${b.cls}`;
+    const labelW=cn.length*fs*0.62+pad*2;
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}"
+      fill="${c}" fill-opacity="0.15" stroke="${c}" stroke-width="${sw}"/>
+      <rect x="${x}" y="${y-lh}" width="${labelW}" height="${lh}" fill="${c}"/>
+      <text x="${x+pad}" y="${y-pad}" fill="#fff" font-size="${fs}"
+        font-weight="600" font-family="sans-serif">${cn}</text>`;
+  }).join("");
+}
+
+function attachDrawHandlers(){
+  const host=document.getElementById("canvasHost");
+  const svg=document.getElementById("curSvg");
+  if(!host||!svg)return;
+
+  const toPct=(e)=>{
+    const r=host.getBoundingClientRect();
+    return [(e.clientX-r.left)/r.width, (e.clientY-r.top)/r.height];
+  };
+  svg.onmousedown=(e)=>{
+    if(e.button!==0)return;
+    const [x,y]=toPct(e);
+    drawing={x0:x,y0:y,x1:x,y1:y};
+    e.preventDefault();
+  };
+  svg.onmousemove=(e)=>{
+    if(!drawing)return;
+    const [x,y]=toPct(e);
+    drawing.x1=x;drawing.y1=y;
+    const x0=Math.min(drawing.x0,drawing.x1)*imgW;
+    const y0=Math.min(drawing.y0,drawing.y1)*imgH;
+    const w=Math.abs(drawing.x1-drawing.x0)*imgW;
+    const h=Math.abs(drawing.y1-drawing.y0)*imgH;
+    const c=COLORS[activeCls%COLORS.length];
+    const sw=_strokeW();
+    let temp=document.getElementById("tempBox");
+    if(!temp){
+      temp=document.createElementNS("http://www.w3.org/2000/svg","rect");
+      temp.id="tempBox";svg.appendChild(temp);
+    }
+    temp.setAttribute("x",x0);temp.setAttribute("y",y0);
+    temp.setAttribute("width",w);temp.setAttribute("height",h);
+    temp.setAttribute("fill",c);temp.setAttribute("fill-opacity","0.2");
+    temp.setAttribute("stroke",c);temp.setAttribute("stroke-width",sw);
+    temp.setAttribute("stroke-dasharray",sw*2);
+  };
+  svg.onmouseup=(e)=>{
+    if(!drawing)return;
+    const dw=Math.abs(drawing.x1-drawing.x0);
+    const dh=Math.abs(drawing.y1-drawing.y0);
+    if(dw>0.01&&dh>0.01){
+      boxes.push({cls:activeCls,
+        cx:(drawing.x0+drawing.x1)/2, cy:(drawing.y0+drawing.y1)/2,
+        w:dw, h:dh});
+    }
+    drawing=null;
+    const t=document.getElementById("tempBox");if(t)t.remove();
+    drawBoxes();
+    updateSub();
+  };
+  svg.onmouseleave=svg.onmouseup;
+}
+
+function undoBox(){
+  if(!boxes.length){toast("Không có box nào");return;}
+  boxes.pop();drawBoxes();updateSub();
+}
+
+async function saveAndNext(){
+  if(curIdx<0){toast("Chưa có ảnh");return;}
+  const img=proj.images[curIdx];
+  try{
+    const r=await fetch(`projects/${proj.slug}/labels/${encodeURIComponent(img)}`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({boxes})});
+    const d=await r.json();
+    if(!proj.labeled)proj.labeled=[];
+    if(!proj.labeled.includes(img))proj.labeled.push(img);
+    toast(`Lưu ${d.boxes} box · ${d.labeled_count}/${proj.images.length}`);
+    if(curIdx<proj.images.length-1){curIdx++;await loadImage();}
+    else{renderStrip();}
+  }catch(e){toast("Lỗi lưu");}
+}
+
+async function uploadImages(ev){
+  const files=ev.target.files;
+  if(!files.length)return;
+  const fd=new FormData();
+  for(const f of files)fd.append("files",f);
+  toast(`Đang tải ${files.length} ảnh...`);
+  try{
+    const r=await fetch(`projects/${proj.slug}/images`,{method:"POST",body:fd});
+    const d=await r.json();
+    toast(`Đã thêm ${d.added.length} ảnh`);
+    proj=await(await fetch(`projects/${proj.slug}`)).json();
+    if(proj.task==="classify"){
+      if(curIdx<0&&proj.images.length){curIdx=0;await loadClsImage();}
+      else renderClsStrip();
+    }else{
+      if(curIdx<0&&proj.images.length){curIdx=0;await loadImage();}
+      else renderStrip();
+    }
+  }catch(e){toast("Lỗi tải ảnh");}
+  ev.target.value="";
+}
+
+async function deleteCurrentImage(){
+  if(curIdx<0||!proj.images[curIdx]){toast("Chưa chọn ảnh");return;}
+  const img=proj.images[curIdx];
+  if(!confirm(`Xoá ảnh "${img}"? Hành động này không thể hoàn tác.`))return;
+  try{
+    const r=await fetch(`projects/${proj.slug}/image/${encodeURIComponent(img)}`,
+      {method:"DELETE"});
+    if(!r.ok){toast("Lỗi xoá ảnh");return;}
+    toast("Đã xoá ảnh");
+    proj=await(await fetch(`projects/${proj.slug}`)).json();
+    if(curIdx>=proj.images.length)curIdx=proj.images.length-1;
+    const emptyHtml='<div class="empty" style="padding:60px 20px">'+
+      'Chưa có ảnh. Tải ảnh lên để bắt đầu.</div>';
+    if(proj.task==="classify"){
+      if(curIdx<0){document.getElementById("cPhoto").innerHTML=emptyHtml;
+        renderClsStrip();updateClsSub();}
+      else await loadClsImage();
+    }else{
+      if(curIdx<0){document.getElementById("canvasWrap").innerHTML=emptyHtml;
+        renderStrip();updateSub();}
+      else await loadImage();
+    }
+  }catch(e){toast("Lỗi kết nối");}
+}
+
+goHome();
+</script>
+</body>
+</html>

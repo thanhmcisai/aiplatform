@@ -1,0 +1,21 @@
+{
+  "base_models": [
+    {
+      "id": "object-detector",
+      "name": "Nhận diện vật thể",
+      "description": "Mô hình nền phát hiện vật thể. Train tiếp bằng ảnh mới để nhận thêm loại vật.",
+      "task": "detect",
+      "file": "base/object-detector.pt",
+      "preloaded": true
+    },
+    {
+      "id": "defect-classifier",
+      "name": "Phân loại lỗi",
+      "description": "Mô hình nền phân loại lỗi sản phẩm. Train tiếp bằng ảnh mới để nhận thêm dạng lỗi.",
+      "task": "classify",
+      "file": "base/defect-classifier.pt",
+      "preloaded": true
+    }
+  ],
+  "_note": "Đặt 2 file .pt gốc vào MinIO bucket 'models' theo đúng đường dẫn 'file'. Xem base-models/README.md."
+}

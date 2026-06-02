@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mô hình — MQOps Studio</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.17.0/tabler-icons.min.css">
+<link rel="stylesheet" href="ui/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <h1>Mô hình</h1>
+      <p>Quản lý phiên bản và triển khai · qua model-api</p>
+    </div>
+    <button class="refresh" onclick="loadAll()">
+      <i class="ti ti-refresh" aria-hidden="true"></i>Làm mới</button>
+  </div>
+
+  <p class="section-label">Model trong registry</p>
+  <div id="models"><div class="empty">Đang tải…</div></div>
+
+  <p class="section-label" style="margin-top:24px">Experiment gần đây</p>
+  <div class="card" id="runs"><div class="empty">Đang tải…</div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MIN_MAP50 = 0.90;
+
+function badge(stage) {
+  const cls = stage === "Production" ? "badge-prod"
+    : stage === "Staging" ? "badge-staging" : "badge-none";
+  return `<span class="badge ${cls}">${stage}</span>`;
+}
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+async function loadModels() {
+  const box = document.getElementById("models");
+  try {
+    const res = await fetch("models");
+    const data = await res.json();
+    if (!data.models || !data.models.length) {
+      box.innerHTML = '<div class="card"><div class="empty">'
+        + 'Chưa có model nào trong registry</div></div>';
+      return;
+    }
+    box.innerHTML = data.models.map(m => {
+      const vs = m.versions.sort((a,b) => b.version - a.version);
+      const rows = vs.map(v => {
+        const pct = Math.round((v.mAP50 || 0) * 100);
+        const canPromote = v.stage !== "Production";
+        const action = canPromote
+          ? `<button class="btn go" onclick="promote('${m.name}','${v.version}')">`
+            + `${v.stage === "Staging" ? "Lên Production" : "Promote"}</button>`
+          : `<button class="btn" onclick="getWeights('${m.name}')">Tải weights</button>`;
+        return `<div class="row"><div class="vinfo">
+          <span class="ver">v${v.version}</span>
+          <div class="bar"><div class="fill" style="width:${pct}%"></div></div>
+          <span class="map">mAP50 ${(v.mAP50||0).toFixed(2)}</span></div>
+          <div class="right">${badge(v.stage)}${action}</div></div>`;
+      }).join("");
+      return `<div class="card reveal"><div class="card-hd">
+        <span class="card-name">${m.name}</span>
+        <span class="card-count">${vs.length} phiên bản</span></div>${rows}</div>`;
+    }).join("");
+  } catch (e) {
+    box.innerHTML = '<div class="card"><div class="empty">'
+      + 'Không kết nối được model-api</div></div>';
+  }
+}
+
+async function loadRuns() {
+  const box = document.getElementById("runs");
+  try {
+    const res = await fetch("runs");
+    const data = await res.json();
+    if (!data.runs || !data.runs.length) {
+      box.innerHTML = '<div class="empty">Chưa có experiment nào</div>';
+      return;
+    }
+    box.innerHTML = data.runs.slice(0, 8).map(r => {
+      const map = r.metrics && r.metrics.mAP50 != null
+        ? `mAP50 ${r.metrics.mAP50.toFixed(2)}` : "—";
+      return `<div class="row"><div class="vinfo">
+        <span style="font-size:14px;font-weight:500">${r.name || r.run_id.slice(0,8)}</span>
+        <span class="map">${map}</span></div>${badge(r.status)}</div>`;
+    }).join("");
+  } catch (e) {
+    box.innerHTML = '<div class="empty">Không tải được experiment</div>';
+  }
+}
+
+async function promote(name, version) {
+  toast(`Đang promote ${name} v${version}…`);
+  try {
+    const res = await fetch(`models/${name}/promote`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({version, stage: "Production", min_map50: MIN_MAP50}),
+    });
+    const data = await res.json();
+    if (res.ok) { toast(`Đã promote ${name} v${version} lên Production`); loadModels(); }
+    else { toast(data.detail || "Promote thất bại"); }
+  } catch (e) { toast("Lỗi kết nối khi promote"); }
+}
+
+async function getWeights(name) {
+  try {
+    const res = await fetch(`models/${name}/production`);
+    const data = await res.json();
+    if (res.ok) toast(`model_uri: ${data.model_uri}`);
+    else toast(data.detail || "Không tìm thấy");
+  } catch (e) { toast("Lỗi kết nối"); }
+}
+
+function loadAll() { loadModels(); loadRuns(); }
+loadAll();
+</script>
+</body>
+</html>

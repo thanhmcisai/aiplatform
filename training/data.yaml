@@ -1,0 +1,10 @@
+# data.yaml — cấu hình dataset YOLO (export từ CVAT theo format YOLO)
+path: ./data        # thư mục gốc dataset (được DVC quản lý)
+train: images/train
+val: images/val
+
+# Danh sách class — chỉnh theo dự án của bạn
+names:
+  0: person
+  1: car
+  2: dog

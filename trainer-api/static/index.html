@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Huấn luyện — MQOps Studio</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.17.0/tabler-icons.min.css">
+<link rel="stylesheet" href="ui/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div><h1>Huấn luyện</h1>
+      <p>Tạo phiên bản dữ liệu, huấn luyện và theo dõi · qua trainer-api</p></div>
+  </div>
+
+  <p class="section-label">Thao tác</p>
+  <div class="tc-act">
+    <button class="btn primary btn-lg" onclick="startTrain()">
+      <i class="ti ti-player-play" aria-hidden="true"></i> Huấn luyện model mới</button>
+    <button class="btn btn-lg" onclick="startExport()">
+      <i class="ti ti-versions" aria-hidden="true"></i> Tạo phiên bản dataset</button>
+  </div>
+
+  <p class="section-label">Công việc</p>
+  <div class="card" id="jobs"><div class="empty">Chưa có công việc nào</div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div id="trainModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:18px;padding:26px;max-width:560px;width:92%;max-height:88vh;overflow:auto">
+    <h2 style="font-size:20px;font-weight:600;margin:0 0 4px">Huấn luyện model</h2>
+    <p style="font-size:13px;color:var(--tx-3);margin:0 0 20px">Chọn cách bắt đầu</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+      <div class="mode-card sel" id="modeScratch" onclick="pickMode('scratch')">
+        <div class="wz-ic"><i class="ti ti-sparkles"></i></div>
+        <p class="wz-ct" style="font-size:15px">Bắt đầu từ đầu</p>
+        <p class="wz-cd">Dạy model mới hoàn toàn (YOLO26)</p>
+      </div>
+      <div class="mode-card" id="modeBase" onclick="pickMode('base')">
+        <div class="wz-ic"><i class="ti ti-versions"></i></div>
+        <p class="wz-ct" style="font-size:15px">Dùng mô hình có sẵn</p>
+        <p class="wz-cd">Train tiếp, cần ít ảnh hơn</p>
+      </div>
+    </div>
+
+    <div id="baseList" style="display:none;margin-bottom:20px">
+      <p class="section-label">Chọn mô hình nền</p>
+      <div class="card" id="baseRows" style="padding:0;overflow:hidden"></div>
+    </div>
+
+    <div style="margin-bottom:18px">
+      <label style="font-size:13px;color:var(--tx-2);display:block;margin-bottom:6px">Dataset để huấn luyện</label>
+      <select id="dsSelect" style="width:100%;padding:9px;border-radius:8px;
+        border:0.5px solid var(--border);background:var(--surface);
+        color:var(--tx-1);font-size:14px"></select>
+    </div>
+
+    <div style="margin-bottom:18px">
+      <label style="font-size:13px;color:var(--tx-2);display:block;margin-bottom:6px">Tên thí nghiệm</label>
+      <input id="expName" value="exp1" style="width:100%">
+    </div>
+
+    <details style="margin-bottom:18px">
+      <summary style="font-size:13px;color:var(--tx-2);cursor:pointer;
+        padding:8px 0">Tùy chọn nâng cao</summary>
+      <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label style="font-size:12px;color:var(--tx-3);display:block;margin-bottom:4px">
+            Số epoch</label>
+          <input id="optEpochs" type="number" value="50" min="1" max="500" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--tx-3);display:block;margin-bottom:4px">
+            Kích thước ảnh (px)</label>
+          <input id="optImgsz" type="number" value="640" min="32" step="32" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--tx-3);display:block;margin-bottom:4px">
+            Số ảnh mỗi batch</label>
+          <input id="optBatch" type="number" value="16" min="1" max="128" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--tx-3);display:block;margin-bottom:4px">
+            Dừng sớm sau N epoch không cải thiện</label>
+          <input id="optPatience" type="number" value="20" min="0" max="100" style="width:100%">
+        </div>
+        <div style="grid-column:span 2">
+          <label style="font-size:12px;color:var(--tx-3);display:block;margin-bottom:4px">
+            Tỉ lệ chia val (nếu chưa có): <span id="valLbl">0%</span></label>
+          <input id="optValSplit" type="range" min="0" max="40" step="5" value="0"
+            style="width:100%" oninput="document.getElementById('valLbl').textContent=this.value+'%'">
+        </div>
+      </div>
+    </details>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal()">Hủy</button>
+      <button class="btn primary" id="goTrain" onclick="submitTrain()">Bắt đầu huấn luyện</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toast(m){const t=document.getElementById("toast");t.textContent=m;
+  t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2600);}
+
+function badge(status){
+  const map={running:["j-run","Đang chạy"],done:["j-done","Xong"],
+    failed:["j-fail","Lỗi"],queued:["j-queued","Chờ"]};
+  const [cls,txt]=map[status]||["j-queued",status];
+  return `<span class="jbadge ${cls}">${txt}</span>`;
+}
+
+let _mode="scratch", _baseModel=null, _baseModels=[], _datasets=[];
+
+async function startTrain(){
+  document.getElementById("trainModal").style.display="flex";
+  pickMode("scratch");
+  document.getElementById("expName").value="exp1";
+  // Nạp danh sách dataset để chọn
+  try{
+    const ds=await(await fetch("datasets")).json();
+    _datasets=ds.datasets||[];
+    const sel=document.getElementById("dsSelect");
+    sel.innerHTML=_datasets.length
+      ? _datasets.map((d,i)=>`<option value="${i}">${d.name} · ${d.latest_version} · ${d.image_count} ảnh</option>`).join("")
+      : '<option value="">— chưa có dataset nào, hãy tạo/upload dữ liệu trước —</option>';
+  }catch(e){
+    document.getElementById("dsSelect").innerHTML='<option value="">Không tải được danh sách dataset</option>';
+  }
+  try{
+    const bm=await(await fetch("base-models")).json();
+    _baseModels=bm.base_models||[];
+    document.getElementById("baseRows").innerHTML=_baseModels.map((m,i)=>
+      `<div class="row" style="cursor:pointer" onclick="pickBase(${i})" id="brow${i}">
+        <div style="flex:1"><div class="jn">${m.name}</div>
+        <div class="jm">${m.description||""}</div></div>
+        <i class="ti ti-check" id="bchk${i}" style="color:var(--accent);display:none"></i></div>`
+    ).join("")||'<div class="empty">Chưa có mô hình nền nào</div>';
+  }catch(e){document.getElementById("baseRows").innerHTML=
+    '<div class="empty">Không tải được danh sách</div>';}
+}
+
+function pickMode(mode){
+  _mode=mode;
+  document.getElementById("modeScratch").classList.toggle("sel",mode==="scratch");
+  document.getElementById("modeBase").classList.toggle("sel",mode==="base");
+  document.getElementById("baseList").style.display=mode==="base"?"block":"none";
+  if(mode==="scratch")_baseModel=null;
+}
+
+function pickBase(i){
+  _baseModel=_baseModels[i].id;
+  _baseModels.forEach((m,j)=>{
+    document.getElementById("brow"+j).style.background=
+      j===i?"var(--green-bg)":"";
+    document.getElementById("bchk"+j).style.display=j===i?"inline":"none";
+  });
+}
+
+function closeModal(){document.getElementById("trainModal").style.display="none";}
+
+async function submitTrain(){
+  const name=document.getElementById("expName").value||"exp1";
+  if(_mode==="base"&&!_baseModel){toast("Hãy chọn một mô hình nền");return;}
+  const di=document.getElementById("dsSelect").value;
+  if(di===""||!_datasets.length){toast("Chưa có dataset — hãy tạo/upload dữ liệu trước");return;}
+  const ds=_datasets[parseInt(di,10)];
+  const body={
+    name,
+    epochs:parseInt(document.getElementById("optEpochs").value,10)||50,
+    imgsz:parseInt(document.getElementById("optImgsz").value,10)||640,
+    batch:parseInt(document.getElementById("optBatch").value,10)||16,
+    patience:parseInt(document.getElementById("optPatience").value,10)||20,
+    val_split:parseInt(document.getElementById("optValSplit").value,10)/100||0,
+    model:"yolo26n.pt",
+    dataset:ds.name, dataset_version:ds.latest_version
+  };
+  if(_mode==="base")body.base_model=_baseModel;
+  const r=await fetch("train",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body)});
+  closeModal();
+  if(r.ok){toast(_baseModel?"Đang train tiếp từ mô hình nền":"Đã bắt đầu huấn luyện");loadJobs();}
+  else{toast("Không bắt đầu được");}
+}
+
+async function startExport(){
+  const pid=prompt("Project ID trên CVAT:","1");if(!pid)return;
+  const tag=prompt("Nhãn phiên bản:","v1")||"v1";
+  const r=await fetch("export",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({project_id:parseInt(pid,10),tag,format:"YOLO 1.1"})});
+  if(r.ok){toast("Đã bắt đầu tạo phiên bản");loadJobs();}
+  else{toast("Không bắt đầu được");}
+}
+
+async function loadJobs(){
+  const box=document.getElementById("jobs");
+  try{
+    const d=await(await fetch("jobs")).json();
+    if(!d.jobs||!d.jobs.length){
+      box.innerHTML='<div class="empty">Chưa có công việc nào</div>';return;}
+    box.innerHTML=d.jobs.map(j=>{
+      const pct=Math.round((j.progress||0)*100);
+      let meta="";
+      if(j.kind==="train") meta=`huấn luyện · ${j.epochs} epoch`;
+      else meta="tạo phiên bản dataset";
+      if(j.status==="failed"&&j.error) meta=`lỗi: ${j.error}`;
+      const prog=(j.status==="running")?
+        `<div class="prog"><div class="pfill" style="width:${pct}%"></div></div>`:"";
+      return `<div class="row"><div style="flex:1">
+        <div class="jn">${j.name||j.id}</div>
+        <div class="jm">${meta}</div>${prog}</div>${badge(j.status)}</div>`;
+    }).join("");
+  }catch(e){box.innerHTML='<div class="empty">Không kết nối được trainer-api</div>';}
+}
+
+loadJobs();
+// Tự động làm mới mỗi 3 giây để thấy tiến độ job
+setInterval(loadJobs, 3000);
+</script>
+</body>
+</html>

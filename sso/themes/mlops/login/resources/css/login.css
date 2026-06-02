@@ -1,0 +1,86 @@
+:root {
+  --bg: #f5f5f7; --surface: #fff; --tx: #1d1d1f; --tx-2: #6e6e73;
+  --border: rgba(0,0,0,0.10); --accent: #0071e3;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000; --surface: #1c1c1e; --tx: #f5f5f7; --tx-2: #aeaeb2;
+    --border: rgba(255,255,255,0.12); --accent: #2997ff;
+  }
+}
+
+body, html {
+  background: var(--bg) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+               "Helvetica Neue", sans-serif !important;
+  color: var(--tx) !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+.login-pf body { background: var(--bg) !important; }
+
+.card-pf {
+  background: var(--surface) !important;
+  border: 0.5px solid var(--border) !important;
+  border-radius: 20px !important;
+  box-shadow: none !important;
+  padding: 36px 32px !important;
+  max-width: 380px;
+  margin: 8% auto 0 !important;
+}
+
+#kc-header, #kc-header-wrapper {
+  color: var(--tx) !important;
+  font-size: 22px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em;
+  text-align: center;
+  padding: 0 0 8px !important;
+}
+
+label, .control-label {
+  font-size: 13px !important;
+  color: var(--tx-2) !important;
+  font-weight: 400 !important;
+}
+
+input[type=text], input[type=password], input[type=email] {
+  height: 42px !important;
+  border-radius: 10px !important;
+  border: 0.5px solid var(--border) !important;
+  background: var(--surface) !important;
+  color: var(--tx) !important;
+  padding: 0 14px !important;
+  font-size: 15px !important;
+  transition: border-color .2s, box-shadow .2s;
+}
+input[type=text]:focus, input[type=password]:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(0,113,227,0.15) !important;
+  outline: none !important;
+}
+
+.btn-primary, #kc-login {
+  background: var(--accent) !important;
+  border: none !important;
+  border-radius: 980px !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  height: 46px !important;
+  width: 100% !important;
+  transition: opacity .25s, transform .18s;
+}
+.btn-primary:hover, #kc-login:hover { opacity: 0.88 !important; }
+.btn-primary:active, #kc-login:active { transform: scale(0.98); }
+
+a { color: var(--accent) !important; text-decoration: none !important; font-size: 13px; }
+a:hover { text-decoration: underline !important; }
+
+#kc-form-options { margin: 4px 0 18px !important; }
+
+/* Ẩn hẳn ô chọn ngôn ngữ ở trang đăng nhập (giao diện cố định tiếng Việt) */
+#kc-locale,
+#kc-locale-wrapper,
+#kc-locale-dropdown,
+.kc-dropdown,
+div.pf-c-dropdown#kc-locale-dropdown { display: none !important; }

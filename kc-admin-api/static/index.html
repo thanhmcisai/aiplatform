@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Người dùng — MQOps Studio</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.17.0/tabler-icons.min.css">
+<link rel="stylesheet" href="ui/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div><h1>Người dùng</h1><p>Quản lý tài khoản và vai trò · qua Keycloak Admin API</p></div>
+    <button class="refresh" onclick="load()">
+      <i class="ti ti-refresh" aria-hidden="true"></i>Làm mới</button>
+  </div>
+
+  <div class="topbar">
+    <span id="count" style="font-size:13px;color:var(--tx-3)">—</span>
+    <button class="btn solid" onclick="addUser()">Thêm người dùng</button>
+  </div>
+  <div class="card" id="users"><div class="empty">Đang tải…</div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let roles = [];
+
+function toast(m){const t=document.getElementById("toast");t.textContent=m;
+  t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2600);}
+
+function initials(u){
+  const s=(u.firstName||u.username||"?").trim();
+  const t=(u.lastName||"").trim();
+  return ((s[0]||"")+(t[0]||"")).toUpperCase()||"?";
+}
+
+async function load(){
+  const box=document.getElementById("users");
+  try{
+    roles=(await(await fetch("roles")).json()).roles||[];
+    const d=await(await fetch("users")).json();
+    document.getElementById("count").textContent=`${d.users.length} người dùng`;
+    if(!d.users.length){box.innerHTML='<div class="empty">Chưa có người dùng</div>';return;}
+    box.innerHTML=d.users.map(u=>{
+      const rl=u.roles.length?u.roles.map(r=>{
+        const cls=/admin|quản trị/i.test(r)?"rl admin":"rl";
+        return `<span class="${cls}">${r}</span>`;}).join(" "):
+        '<span class="rl">chưa gán</span>';
+      return `<div class="row"><div class="fl"><div class="av">${initials(u)}</div>
+        <div><div class="uname">${u.username}</div>
+        <div class="umail">${u.email||"—"}</div></div></div>
+        <div class="right">${rl}
+        <i class="ti ti-user-cog ic" title="Gán vai trò" onclick="assignRole('${u.id}')"></i>
+        <i class="ti ti-key ic" title="Reset mật khẩu" onclick="resetPw('${u.id}')"></i>
+        <i class="ti ti-trash ic del" title="Xóa" onclick="del('${u.id}','${u.username}')"></i>
+        </div></div>`;
+    }).join("");
+  }catch(e){box.innerHTML='<div class="empty">Không kết nối được kc-admin-api</div>';}
+}
+
+async function addUser(){
+  const username=prompt("Tên đăng nhập:");if(!username)return;
+  const email=prompt("Email (tùy chọn):")||"";
+  const password=prompt("Mật khẩu:");if(!password)return;
+  const r=await fetch("users",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({username,email,password})});
+  if(r.ok){toast("Đã tạo người dùng");load();}else{toast("Tạo thất bại");}
+}
+
+async function del(id,name){
+  if(!confirm(`Xóa người dùng ${name}?`))return;
+  const r=await fetch(`users/${id}`,{method:"DELETE"});
+  if(r.ok){toast("Đã xóa");load();}else{toast("Xóa thất bại");}
+}
+
+async function resetPw(id){
+  const password=prompt("Mật khẩu mới:");if(!password)return;
+  const r=await fetch(`users/${id}/password`,{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({password})});
+  if(r.ok){toast("Đã đổi mật khẩu");}else{toast("Đổi thất bại");}
+}
+
+async function assignRole(id){
+  if(!roles.length){toast("Không có vai trò nào");return;}
+  const role=prompt(`Gán vai trò (${roles.join(", ")}):`);
+  if(!role)return;
+  const r=await fetch(`users/${id}/roles`,{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({role})});
+  if(r.ok){toast(`Đã gán ${role}`);load();}else{toast("Gán thất bại");}
+}
+
+load();
+</script>
+</body>
+</html>

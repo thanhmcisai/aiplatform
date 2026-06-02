@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dữ liệu — MQOps Studio</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.17.0/tabler-icons.min.css">
+<link rel="stylesheet" href="ui/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div><h1>Dữ liệu</h1><p>Duyệt bucket và file · qua MinIO API</p></div>
+    <button class="refresh" onclick="loadBuckets()">
+      <i class="ti ti-refresh" aria-hidden="true"></i>Làm mới</button>
+  </div>
+
+  <div class="mb-grid">
+    <div class="card">
+      <div class="phd">Bucket
+        <i class="ti ti-plus ic" title="Tạo bucket" onclick="createBucket()"></i></div>
+      <div id="buckets"><div class="empty">Đang tải…</div></div>
+    </div>
+    <div class="card">
+      <div class="phd"><span id="loc">—</span>
+        <button class="btn solid" onclick="uploadFile()">Upload</button></div>
+      <div id="objects"><div class="empty">Chọn một bucket</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="filepick" style="display:none">
+
+<script>
+let current = null;
+let prefix = "";
+
+function toast(m){const t=document.getElementById("toast");t.textContent=m;
+  t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2600);}
+
+async function loadBuckets(){
+  const box=document.getElementById("buckets");
+  try{
+    const d=await(await fetch("buckets")).json();
+    if(!d.buckets||!d.buckets.length){box.innerHTML='<div class="empty">Chưa có bucket</div>';return;}
+    box.innerHTML=d.buckets.map(b=>
+      `<div class="mb-bk${b===current?' on':''}" onclick="openBucket('${b}')">
+        <i class="ti ti-folder"></i>${b}</div>`).join("");
+    if(!current){openBucket(d.buckets[0]);}
+  }catch(e){box.innerHTML='<div class="empty">Không kết nối được</div>';}
+}
+
+async function openBucket(b){
+  current=b;prefix="";
+  document.querySelectorAll(".mb-bk").forEach(el=>
+    el.classList.toggle("on",el.textContent.trim()===b));
+  loadObjects();
+}
+
+async function loadObjects(){
+  const box=document.getElementById("objects");
+  document.getElementById("loc").textContent=`${current} / ${prefix||""}`;
+  try{
+    const d=await(await fetch(
+      `buckets/${current}/objects?prefix=${encodeURIComponent(prefix)}`)).json();
+    let html="";
+    if(prefix){
+      const up=prefix.replace(/[^/]+\/$/,"");
+      html+=`<div class="row" onclick="prefix='${up}';loadObjects()" style="cursor:pointer">
+        <div class="fl"><i class="ti ti-arrow-left"></i>..</div></div>`;
+    }
+    html+=(d.folders||[]).map(f=>{
+      const name=f.slice(prefix.length);
+      return `<div class="row" onclick="prefix='${f}';loadObjects()" style="cursor:pointer">
+        <div class="fl"><i class="ti ti-folder"></i>${name}</div></div>`;
+    }).join("");
+    html+=(d.files||[]).map(f=>{
+      const name=f.key.slice(prefix.length);
+      return `<div class="row"><div class="fl"><i class="ti ti-file"></i>${name}</div>
+        <div class="right"><span class="map">${f.size_h}</span>
+        <i class="ti ti-download ic" title="Tải" onclick="dl('${f.key}')"></i>
+        <i class="ti ti-trash ic del" title="Xóa" onclick="rm('${f.key}')"></i></div></div>`;
+    }).join("");
+    box.innerHTML=html||'<div class="empty">Bucket trống</div>';
+  }catch(e){box.innerHTML='<div class="empty">Không tải được</div>';}
+}
+
+async function dl(key){
+  const d=await(await fetch(`buckets/${current}/download?key=${encodeURIComponent(key)}`)).json();
+  if(d.url)window.open(d.url,"_blank");
+}
+
+async function rm(key){
+  if(!confirm(`Xóa ${key}?`))return;
+  await fetch(`buckets/${current}/objects?key=${encodeURIComponent(key)}`,{method:"DELETE"});
+  toast("Đã xóa");loadObjects();
+}
+
+async function createBucket(){
+  const name=prompt("Tên bucket mới:");
+  if(!name)return;
+  const r=await fetch(`buckets/${name}`,{method:"POST"});
+  if(r.ok){toast("Đã tạo bucket");loadBuckets();}else{toast("Tạo thất bại");}
+}
+
+function uploadFile(){
+  if(!current){toast("Chọn bucket trước");return;}
+  const pick=document.getElementById("filepick");
+  pick.onchange=async()=>{
+    if(!pick.files.length)return;
+    const fd=new FormData();fd.append("file",pick.files[0]);
+    toast("Đang upload…");
+    const r=await fetch(`buckets/${current}/upload?prefix=${encodeURIComponent(prefix)}`,
+      {method:"POST",body:fd});
+    if(r.ok){toast("Đã upload");loadObjects();}else{toast("Upload thất bại");}
+    pick.value="";
+  };
+  pick.click();
+}
+
+loadBuckets();
+</script>
+</body>
+</html>

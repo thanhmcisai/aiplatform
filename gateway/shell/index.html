@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MQOps Studio</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.17.0/tabler-icons.min.css">
+<style>
+:root{
+  --bg:#f5f5f7;--surface:#fff;--surface-2:#f5f5f7;--tx:#1d1d1f;--tx-2:#6e6e73;--tx-3:#86868b;
+  --border:rgba(0,0,0,0.08);--accent:#0071e3;--green:#34c759;
+  --ease:cubic-bezier(0.22,1,0.36,1);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#000;--surface:#1c1c1e;--surface-2:#2c2c2e;--tx:#f5f5f7;--tx-2:#aeaeb2;
+  --tx-3:#8e8e93;--border:rgba(255,255,255,0.10);--accent:#2997ff;}
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",sans-serif}
+html,body{height:100%;background:var(--bg);color:var(--tx);letter-spacing:-0.01em;-webkit-font-smoothing:antialiased}
+.app{display:flex;height:100vh}
+
+.side{width:230px;flex-shrink:0;background:var(--surface-2);border-right:0.5px solid var(--border);display:flex;flex-direction:column;padding:20px 14px}
+.brand{display:flex;align-items:center;gap:10px;padding:8px 12px 22px}
+.brand i{font-size:22px;color:var(--accent)}
+.brand span{font-size:16px;font-weight:600;letter-spacing:-0.02em}
+.nav{display:flex;flex-direction:column;gap:3px}
+.item{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:11px;font-size:14px;
+  color:var(--tx-2);cursor:pointer;border:none;background:none;text-align:left;width:100%;
+  transition:background .2s var(--ease),color .2s}
+.item:hover{background:var(--border)}
+.item.on{background:var(--surface);color:var(--tx);font-weight:500;box-shadow:0 1px 3px rgba(0,0,0,0.07)}
+.item i{font-size:19px;width:22px;text-align:center}
+.foot{margin-top:auto;padding:11px 13px;font-size:12px;color:var(--tx-3);display:flex;align-items:center;gap:8px}
+.fdot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.bar{height:52px;flex-shrink:0;border-bottom:0.5px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:0 20px}
+.crumb{font-size:15px;font-weight:500}
+.actions{display:flex;gap:8px}
+.chip{font-size:13px;color:var(--tx-2);padding:7px 13px;border-radius:980px;background:var(--surface-2);
+  border:none;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .2s}
+.chip:hover{background:var(--border)}
+.chip i{font-size:15px}
+.frame-wrap{flex:1;position:relative;background:var(--surface-2)}
+iframe{width:100%;height:100%;border:none;display:block;background:var(--surface)}
+.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--tx-3);font-size:13px;pointer-events:none;opacity:0;transition:opacity .3s}
+.loading.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><i class="ti ti-stack-2" aria-hidden="true"></i><span>MQOps Studio</span></div>
+    <nav class="nav" id="nav">
+      <button class="item on" data-src="/dashboard/" data-name="Tổng quan">
+        <i class="ti ti-layout-dashboard" aria-hidden="true"></i>Tổng quan</button>
+      <button class="item" data-src="/label/" data-name="Gán nhãn">
+        <i class="ti ti-tag" aria-hidden="true"></i>Gán nhãn</button>
+      <button class="item" data-src="/cvat/" data-name="Gán nhãn nâng cao">
+        <i class="ti ti-tags" aria-hidden="true"></i>Gán nhãn nâng cao</button>
+      <button class="item" data-src="/models/" data-name="Mô hình">
+        <i class="ti ti-versions" aria-hidden="true"></i>Mô hình</button>
+      <button class="item" data-src="/models/try" data-name="Thử model">
+        <i class="ti ti-photo-check" aria-hidden="true"></i>Thử model</button>
+      <button class="item" data-src="/train/" data-name="Huấn luyện">
+        <i class="ti ti-player-play" aria-hidden="true"></i>Huấn luyện</button>
+      <button class="item" data-src="/datasets/" data-name="Dataset">
+        <i class="ti ti-box-multiple" aria-hidden="true"></i>Dataset</button>
+      <button class="item" data-src="/minio/" data-name="Kho ảnh">
+        <i class="ti ti-database" aria-hidden="true"></i>Kho ảnh</button>
+      <button class="item" data-src="/users/" data-name="Người dùng">
+        <i class="ti ti-users" aria-hidden="true"></i>Người dùng</button>
+      <button class="item" data-src="/api/" data-name="API">
+        <i class="ti ti-api" aria-hidden="true"></i>API</button>
+    </nav>
+    <div class="foot"><span class="fdot"></span>Dịch vụ online</div>
+  </aside>
+
+  <main class="main">
+    <header class="bar">
+      <span class="crumb" id="crumb">Tổng quan</span>
+      <div class="actions">
+        <button class="chip" onclick="document.getElementById('view').src=document.getElementById('view').src">
+          <i class="ti ti-refresh" aria-hidden="true"></i>Làm mới</button>
+        <button class="chip" onclick="window.open(document.getElementById('view').src,'_blank')">
+          <i class="ti ti-external-link" aria-hidden="true"></i>Mở tab mới</button>
+        <button class="chip" onclick="location.href='/oauth2/sign_out'">
+          <i class="ti ti-logout" aria-hidden="true"></i>Đăng xuất</button>
+      </div>
+    </header>
+    <div class="frame-wrap">
+      <div class="loading" id="loading">Đang tải…</div>
+      <iframe id="view" src="/dashboard/" title="Service view"></iframe>
+    </div>
+  </main>
+</div>
+
+<script>
+const nav = document.getElementById('nav');
+const view = document.getElementById('view');
+const crumb = document.getElementById('crumb');
+const loading = document.getElementById('loading');
+let currentSrc = '/dashboard/';
+
+nav.addEventListener('click', (e) => {
+  const btn = e.target.closest('.item');
+  if (!btn) return;
+  nav.querySelectorAll('.item').forEach(i => i.classList.remove('on'));
+  btn.classList.add('on');
+  crumb.textContent = btn.dataset.name;
+  loading.classList.add('show');
+  currentSrc = btn.dataset.src;
+  view.src = currentSrc;
+});
+
+view.addEventListener('load', () => {
+  loading.classList.remove('show');
+  // Best-effort: chèn script dịch tiếng Việt khi đang xem CVAT.
+  // Chỉ chạy được nếu iframe cùng origin (đã gom về cùng cổng 80).
+  if (currentSrc.startsWith('/cvat')) {
+    try {
+      const doc = view.contentDocument;
+      if (doc && !doc.getElementById('cvat-vi')) {
+        const s = doc.createElement('script');
+        s.id = 'cvat-vi';
+        s.src = '/i18n/cvat-vi.js';
+        doc.body.appendChild(s);
+      }
+    } catch (err) {
+      // cross-origin hoặc CSP chặn — bỏ qua, CVAT vẫn dùng được (tiếng Anh)
+    }
+  }
+});
+</script>
+</body>
+</html>

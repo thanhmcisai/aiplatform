@@ -1,0 +1,35 @@
+# =============================================================
+#  docker-compose.serverless.yml — thêm Nuclio cho CVAT auto-annotation
+#
+#  Nuclio quản lý các "serverless function" (SAM, YOLO...) mà CVAT gọi
+#  để gán nhãn bằng AI. Chạy KÈM file docker-compose.yml chính:
+#
+#    docker compose \
+#      -f docker-compose.yml \
+#      -f serverless/docker-compose.serverless.yml \
+#      up -d
+#
+#  Sau đó deploy SAM bằng: bash serverless/deploy-sam.sh
+# =============================================================
+name: cv-mlops
+
+services:
+  nuclio:
+    restart: unless-stopped
+    image: quay.io/nuclio/dashboard:1.13.0-amd64
+    environment:
+      NUCLIO_CHECK_FUNCTION_CONTAINERS_HEALTHINESS: "true"
+      NUCLIO_DASHBOARD_DEFAULT_FUNCTION_MOUNT_MODE: volume
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./serverless/functions:/etc/nuclio/functions:ro
+    ports:
+      - "8070:8070"
+
+  # CVAT server cần biết địa chỉ Nuclio để gọi function.
+  # Bổ sung biến môi trường vào cvat-server đã khai báo ở file chính.
+  cvat-server:
+    environment:
+      CVAT_SERVERLESS: "1"
+      CVAT_NUCLIO_HOST: nuclio
+      CVAT_NUCLIO_PORT: "8070"

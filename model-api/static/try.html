@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Thử model — MQOps Studio</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.17.0/tabler-icons.min.css">
+<link rel="stylesheet" href="ui/style.css">
+<style>
+.drop { background: var(--surface-2); border: 2px dashed var(--border);
+  border-radius: 18px; padding: 60px 24px; text-align: center; cursor: pointer;
+  transition: border-color .2s, background .2s; margin-bottom: 16px; }
+.drop.over { border-color: var(--accent); background: var(--green-bg); }
+.drop i { font-size: 36px; color: var(--tx-3); }
+.drop p { margin: 12px 0 4px; font-size: 15px; font-weight: 500; }
+.drop small { font-size: 12px; color: var(--tx-3); }
+.result-wrap { background: var(--surface-2); border-radius: 14px; padding: 14px;
+  margin-bottom: 14px; min-height: 200px; display: flex;
+  align-items: center; justify-content: center; position: relative; overflow: hidden; }
+.result-host { position: relative; display: inline-block; max-width: 100%;
+  line-height: 0; }
+.result-host img { display: block; max-width: 100%; max-height: 60vh; }
+.result-host svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.det-list { background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: 12px; padding: 0; overflow: hidden; }
+.det-row { display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-bottom: 0.5px solid var(--border); }
+.det-row:last-child { border-bottom: none; }
+.det-chip { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.det-cls { font-size: 14px; font-weight: 500; flex: 1; }
+.det-conf { font-size: 12px; color: var(--tx-3); font-variant-numeric: tabular-nums; }
+.cls-big-card { background: var(--green-bg); color: var(--green-tx);
+  border-radius: 14px; padding: 24px; text-align: center; margin-bottom: 14px; }
+.cls-big-card .lbl { font-size: 13px; opacity: 0.8; }
+.cls-big-card .val { font-size: 28px; font-weight: 600; margin-top: 4px;
+  letter-spacing: -0.02em; }
+.cls-big-card .pct { font-size: 14px; margin-top: 4px; opacity: 0.8; }
+.conf-slider { display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px; font-size: 13px; color: var(--tx-2); }
+.conf-slider input[type=range] { flex: 1; }
+.muted { color: var(--tx-3); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div><h1>Thử model</h1>
+      <p>Kéo thả một tấm ảnh, xem mô hình Production nhận diện được gì</p></div>
+  </div>
+
+  <div id="modelInfo" class="muted" style="margin-bottom:12px"></div>
+
+  <div class="drop" id="drop" onclick="document.getElementById('fileIn').click()">
+    <i class="ti ti-photo-up" aria-hidden="true"></i>
+    <p>Kéo thả ảnh vào đây</p>
+    <small>hoặc bấm để chọn file (JPG, PNG)</small>
+    <input type="file" id="fileIn" accept="image/*" hidden onchange="handleFile(event)">
+  </div>
+
+  <div class="conf-slider">
+    <span>Ngưỡng tin cậy</span>
+    <input type="range" id="conf" min="5" max="90" step="5" value="25"
+      oninput="document.getElementById('confLbl').textContent=this.value+'%';rerun()">
+    <span id="confLbl">25%</span>
+  </div>
+
+  <div id="resultArea" style="display:none">
+    <p class="section-label">Kết quả</p>
+    <div class="result-wrap" id="resultWrap"></div>
+    <div id="resultDetail"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS=["#1D9E75","#D85A30","#378ADD","#BA7517","#D4537E","#7F77DD","#5F5E5A","#993556"];
+let lastImage=null;
+
+function toast(m){const t=document.getElementById("toast");t.textContent=m;
+  t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2400);}
+
+async function loadModelInfo(){
+  try{
+    const d=await(await fetch("models")).json();
+    const prod=(d.models||[]).find(m=>(m.versions||[]).some(v=>v.stage==="Production"));
+    if(prod){
+      const pv=prod.versions.find(v=>v.stage==="Production");
+      document.getElementById("modelInfo").innerHTML=
+        `<i class="ti ti-circle-check" style="color:var(--green-tx)"></i> `+
+        `Đang dùng: <strong>${prod.name}</strong> v${pv.version} ·`+
+        ` độ chính xác ${Math.round((pv.map50||0)*100)}%`;
+    }else{
+      document.getElementById("modelInfo").innerHTML=
+        '<i class="ti ti-alert-circle" style="color:#BA7517"></i> '+
+        'Chưa có model nào ở Production. Hãy promote một version trước.';
+    }
+  }catch(e){
+    document.getElementById("modelInfo").textContent="Không tải được thông tin model";
+  }
+}
+
+const drop=document.getElementById("drop");
+drop.addEventListener("dragover",e=>{e.preventDefault();drop.classList.add("over");});
+drop.addEventListener("dragleave",()=>drop.classList.remove("over"));
+drop.addEventListener("drop",e=>{
+  e.preventDefault();drop.classList.remove("over");
+  if(e.dataTransfer.files[0])processFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(ev){if(ev.target.files[0])processFile(ev.target.files[0]);}
+
+async function processFile(file){
+  if(!file.type.startsWith("image/")){toast("Chỉ nhận ảnh");return;}
+  lastImage=file;
+  await rerun();
+}
+
+async function rerun(){
+  if(!lastImage)return;
+  const conf=parseInt(document.getElementById("conf").value,10)/100;
+  document.getElementById("resultArea").style.display="block";
+  document.getElementById("resultWrap").innerHTML=
+    '<div class="muted">Đang nhận diện...</div>';
+  document.getElementById("resultDetail").innerHTML="";
+
+  const fd=new FormData();
+  fd.append("image",lastImage);
+  fd.append("conf",conf);
+  try{
+    const r=await fetch("try/predict",{method:"POST",body:fd});
+    if(!r.ok){toast("Lỗi gọi model");return;}
+    const d=await r.json();
+    renderResult(d);
+  }catch(e){toast("Lỗi kết nối");
+    document.getElementById("resultWrap").innerHTML=
+      '<div class="muted">Không kết nối được model</div>';}
+}
+
+function renderResult(d){
+  const url=URL.createObjectURL(lastImage);
+  const wrap=document.getElementById("resultWrap");
+  const detail=document.getElementById("resultDetail");
+
+  if(d.task==="classify"){
+    wrap.innerHTML=`<div class="result-host"><img src="${url}" alt=""></div>`;
+    const c=Math.round((d.confidence||0)*100);
+    detail.innerHTML=`<div class="cls-big-card">
+      <div class="lbl">Mô hình đoán là</div>
+      <div class="val">${d.class||"–"}</div>
+      <div class="pct">độ tin cậy ${c}%</div></div>`;
+    if(d.all&&d.all.length>1){
+      detail.innerHTML+='<p class="section-label">Các loại khác</p><div class="det-list">'+
+        d.all.filter(x=>x.class!==d.class).slice(0,5).map((x,i)=>
+          `<div class="det-row">
+            <div class="det-chip" style="background:${COLORS[(i+1)%COLORS.length]}"></div>
+            <div class="det-cls">${x.class}</div>
+            <div class="det-conf">${Math.round(x.confidence*100)}%</div></div>`).join("")+
+        '</div>';
+    }
+    return;
+  }
+
+  const dets=d.detections||[];
+  const img=new Image();
+  img.onload=()=>{
+    const w=img.naturalWidth, h=img.naturalHeight;
+    const boxesSvg=dets.map((det,i)=>{
+      const [x1,y1,x2,y2]=det.bbox;
+      const c=COLORS[i%COLORS.length];
+      const w_=x2-x1, h_=y2-y1;
+      return `<rect x="${x1}" y="${y1}" width="${w_}" height="${h_}"
+        fill="${c}" fill-opacity="0.12" stroke="${c}" stroke-width="2"/>
+        <rect x="${x1}" y="${y1-18}" width="${det.class.length*7+22}" height="18"
+          fill="${c}"/>
+        <text x="${x1+4}" y="${y1-5}" fill="#fff" font-size="13"
+          font-weight="600" font-family="sans-serif">${det.class} ${Math.round(det.confidence*100)}%</text>`;
+    }).join("");
+    wrap.innerHTML=`<div class="result-host">
+      <img src="${url}" alt="">
+      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${boxesSvg}</svg></div>`;
+  };
+  img.src=url;
+
+  if(!dets.length){
+    detail.innerHTML='<div class="muted" style="padding:14px 0">'+
+      'Mô hình không nhận diện được gì (thử hạ ngưỡng tin cậy ở thanh trượt).</div>';
+  }else{
+    detail.innerHTML='<p class="section-label">'+
+      `Tìm thấy ${dets.length} vật</p><div class="det-list">`+
+      dets.map((det,i)=>
+        `<div class="det-row">
+          <div class="det-chip" style="background:${COLORS[i%COLORS.length]}"></div>
+          <div class="det-cls">${det.class}</div>
+          <div class="det-conf">${Math.round(det.confidence*100)}%</div></div>`).join("")+
+      '</div>';
+  }
+}
+
+loadModelInfo();
+</script>
+</body>
+</html>

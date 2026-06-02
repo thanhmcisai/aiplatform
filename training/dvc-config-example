@@ -1,0 +1,22 @@
+# DVC config — đặt vào .dvc/config sau khi `dvc init`
+# Hoặc chạy các lệnh tương ứng:
+#
+#   dvc init
+#   dvc remote add -d minio s3://datasets
+#   dvc remote modify minio endpointurl http://localhost:9000
+#   dvc remote modify minio access_key_id minioadmin
+#   dvc remote modify minio secret_access_key minioadmin
+#
+# Sau đó version dataset:
+#   dvc add data/images
+#   git add data/images.dvc .gitignore
+#   git commit -m "dataset v1"
+#   dvc push
+
+[core]
+    remote = minio
+['remote "minio"']
+    url = s3://datasets
+    endpointurl = http://localhost:9000
+    access_key_id = minioadmin
+    secret_access_key = minioadmin

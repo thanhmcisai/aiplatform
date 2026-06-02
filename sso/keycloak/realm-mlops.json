@@ -1,0 +1,98 @@
+{
+  "realm": "mlops",
+  "enabled": true,
+  "displayName": "MQOps Studio",
+  "loginTheme": "mlops",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["vi", "en"],
+  "defaultLocale": "vi",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "clients": [
+    {
+      "clientId": "oauth2-proxy",
+      "name": "Gateway oauth2-proxy",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "oauth2-proxy-secret-CHANGE-ME",
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost/oauth2/callback", "http://localhost:8090/oauth2/callback", "http://${PUBLIC_HOST}:${GATEWAY_PORT}/oauth2/callback", "https://*/oauth2/callback"],
+      "webOrigins": ["+"],
+      "defaultClientScopes": ["openid", "profile", "email", "roles"],
+      "protocolMappers": [
+        {
+          "name": "oauth2-proxy-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "oauth2-proxy",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "cvat",
+      "name": "CVAT",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "cvat-secret-CHANGE-ME",
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost/cvat/*", "http://localhost:8090/cvat/*", "http://${PUBLIC_HOST}:${GATEWAY_PORT}/cvat/*", "http://${PUBLIC_HOST}:8080/*", "http://localhost:8080/*"],
+      "webOrigins": ["+"]
+    },
+    {
+      "clientId": "mlflow",
+      "name": "MLflow",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "mlflow-secret-CHANGE-ME",
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost/mlflow/*", "http://localhost:8090/mlflow/*", "http://${PUBLIC_HOST}:${GATEWAY_PORT}/mlflow/*", "http://localhost:5000/*"],
+      "webOrigins": ["+"]
+    },
+    {
+      "clientId": "minio",
+      "name": "MinIO",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "minio-secret-CHANGE-ME",
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost/minio/*", "http://localhost:8090/minio/*", "http://${PUBLIC_HOST}:${GATEWAY_PORT}/minio/*", "http://localhost:9001/*"],
+      "webOrigins": ["+"],
+      "protocolMappers": [
+        {
+          "name": "minio-policy",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "policy",
+            "claim.value": "consoleAdmin",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin@mlops.local",
+      "firstName": "Quản trị",
+      "lastName": "viên",
+      "credentials": [
+        {"type": "password", "value": "admin", "temporary": false}
+      ],
+      "realmRoles": ["default-roles-mlops"]
+    }
+  ]
+}

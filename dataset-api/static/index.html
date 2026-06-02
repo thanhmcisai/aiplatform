@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dữ liệu — MQOps Studio</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.17.0/tabler-icons.min.css">
+<link rel="stylesheet" href="ui/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div id="listView">
+    <div class="hero">
+      <div><h1>Dữ liệu</h1>
+        <p>Các bộ dữ liệu đã có và phiên bản · qua dataset-api</p></div>
+    </div>
+    <p class="section-label">Danh sách dataset</p>
+    <div class="card" id="listBox" style="padding:0;overflow:hidden">
+      <div class="empty">Đang tải...</div>
+    </div>
+  </div>
+
+  <div id="detailView" style="display:none">
+    <div class="ds-back" onclick="goList()"><i class="ti ti-arrow-left"></i>Quay lại</div>
+    <h1 id="dTitle" style="font-size:22px;font-weight:600;margin:0 0 4px"></h1>
+    <p id="dSub" style="font-size:13px;color:var(--tx-3);margin:0 0 22px"></p>
+
+    <p class="section-label">Phiên bản</p>
+    <div class="card" id="versList" style="padding:0;overflow:hidden;margin-bottom:24px"></div>
+
+    <div id="versionDetail" style="display:none">
+      <p class="section-label">Tổng quan phiên bản <span id="vName"></span></p>
+      <div class="ds-stats">
+        <div class="ds-stat"><p class="ds-sl">Train</p><p class="ds-sv" id="vTrain">–</p></div>
+        <div class="ds-stat"><p class="ds-sl">Val</p><p class="ds-sv" id="vVal">–</p></div>
+        <div class="ds-stat"><p class="ds-sl">Class</p><p class="ds-sv" id="vClass">–</p></div>
+        <div class="ds-stat"><p class="ds-sl">Tạo lúc</p><p class="ds-sv" id="vDate" style="font-size:13px">–</p></div>
+      </div>
+
+      <div id="vClassList" style="margin-bottom:14px"></div>
+
+      <p class="section-label">Ảnh mẫu</p>
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:18px">
+        <div class="ds-preview" id="vPreview">
+          <div class="ds-thumb"></div><div class="ds-thumb"></div>
+          <div class="ds-thumb"></div><div class="ds-thumb"></div>
+          <div class="ds-thumb"></div><div class="ds-thumb"></div>
+        </div>
+      </div>
+
+      <p class="section-label">Đã dùng cho train</p>
+      <div id="vRuns"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let currentDataset=null;
+
+function badge(stage){
+  return `<span style="font-size:11px;color:var(--tx-3)">${stage}</span>`;
+}
+
+async function loadList(){
+  try{
+    const d=await(await fetch("datasets")).json();
+    const box=document.getElementById("listBox");
+    if(!d.datasets||!d.datasets.length){
+      box.innerHTML='<div class="empty">Chưa có dataset nào</div>';return;}
+    box.innerHTML=d.datasets.map(ds=>`
+      <div class="row" style="cursor:pointer;padding:14px 18px" onclick="openDataset('${ds.name}')">
+        <div class="ds-ic"><i class="ti ti-box-multiple"></i></div>
+        <div style="flex:1">
+          <div style="font-size:15px;font-weight:600">${ds.name}</div>
+          <div style="font-size:12px;color:var(--tx-3);margin-top:2px">
+            ${ds.version_count} phiên bản · mới nhất ${ds.latest_version||"–"}</div>
+        </div>
+        <div class="ds-meta">
+          <div class="ds-mv">${ds.latest_version||"–"}</div>
+          <div>${ds.image_count||0} ảnh · ${ds.class_count||0} class</div>
+        </div>
+      </div>`).join("");
+  }catch(e){
+    document.getElementById("listBox").innerHTML=
+      '<div class="empty">Không kết nối được dataset-api</div>';
+  }
+}
+
+async function openDataset(name){
+  currentDataset=name;
+  document.getElementById("listView").style.display="none";
+  document.getElementById("detailView").style.display="block";
+  document.getElementById("dTitle").textContent=name;
+  document.getElementById("dSub").textContent="Các phiên bản và lịch sử dùng";
+  document.getElementById("versionDetail").style.display="none";
+
+  try{
+    const d=await(await fetch(`datasets/${encodeURIComponent(name)}`)).json();
+    document.getElementById("versList").innerHTML=d.versions.map((v,i)=>`
+      <div class="row" style="cursor:pointer;padding:12px 18px" onclick="openVersion('${v.version}')">
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:500">${v.version}</div>
+          <div style="font-size:12px;color:var(--tx-3);margin-top:2px">${v.last_modified.slice(0,10)}</div>
+        </div>
+        <i class="ti ti-chevron-right" style="color:var(--tx-3)"></i>
+      </div>`).join("");
+    if(d.versions.length)openVersion(d.versions[0].version);
+  }catch(e){toast&&toast("Lỗi tải chi tiết");}
+}
+
+async function openVersion(version){
+  document.getElementById("versionDetail").style.display="block";
+  document.getElementById("vName").textContent=version;
+  try{
+    const v=await(await fetch(
+      `datasets/${encodeURIComponent(currentDataset)}/${encodeURIComponent(version)}`)).json();
+    document.getElementById("vTrain").textContent=v.train;
+    document.getElementById("vVal").textContent=v.val;
+    document.getElementById("vClass").textContent=v.class_count;
+    document.getElementById("vDate").textContent="–";
+    document.getElementById("vClassList").innerHTML=
+      '<span style="font-size:13px;color:var(--tx-3)">Class: </span>'+
+      v.classes.map(c=>`<span class="ds-cl">${c}</span>`).join("");
+    const rb=document.getElementById("vRuns");
+    if(!v.runs||!v.runs.length){
+      rb.innerHTML='<div class="empty" style="padding:12px">Chưa có train nào dùng phiên bản này</div>';
+    }else{
+      rb.innerHTML=v.runs.map(r=>`
+        <div class="ds-train-row">
+          <i class="ti ti-versions" style="font-size:18px;color:var(--tx-2)" aria-hidden="true"></i>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500">${r.name} · ${r.epochs} epoch</div>
+            <div style="font-size:11px;color:var(--tx-3)">${r.started}</div>
+          </div>
+          <span class="ds-mp">mAP ${Math.round((r.map50||0)*100)}%</span>
+        </div>`).join("");
+    }
+  }catch(e){}
+  try{
+    const p=await(await fetch(
+      `datasets/${encodeURIComponent(currentDataset)}/${encodeURIComponent(version)}/preview?n=6`)).json();
+    const pv=document.getElementById("vPreview");
+    const classes=p.classes||[];
+    const colors=["#1D9E75","#D85A30","#378ADD","#BA7517","#D4537E","#7F77DD","#5F5E5A"];
+    pv.innerHTML=(p.images||[]).map(im=>{
+      const boxes=(im.boxes||[]).map(b=>{
+        const c=colors[b.cls%colors.length];
+        const x=(b.cx-b.w/2)*100, y=(b.cy-b.h/2)*100;
+        const w=b.w*100, h=b.h*100;
+        const cn=classes[b.cls]||`#${b.cls}`;
+        return `<rect x="${x}%" y="${y}%" width="${w}%" height="${h}%"
+                  fill="none" stroke="${c}" stroke-width="2"/>
+                <text x="${x}%" y="${y}%" dy="-3" fill="${c}"
+                  font-size="10" font-weight="600">${cn}</text>`;
+      }).join("");
+      return `<div class="ds-thumb" style="position:relative">
+        <img src="${im.url}" alt="${im.name}">
+        <svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"
+             viewBox="0 0 100 100" preserveAspectRatio="none">${boxes}</svg></div>`;
+    }).join("");
+    while(pv.children.length<6)
+      pv.innerHTML+='<div class="ds-thumb"></div>';
+  }catch(e){}
+}
+
+function goList(){
+  document.getElementById("detailView").style.display="none";
+  document.getElementById("listView").style.display="block";
+}
+
+loadList();
+</script>
+</body>
+</html>

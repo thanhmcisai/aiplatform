@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MQOps Studio — Bắt đầu</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.17.0/tabler-icons.min.css">
+<link rel="stylesheet" href="/wizard-ui/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div id="welcome">
+    <div class="center">
+      <h1 style="font-size:30px;font-weight:600;letter-spacing:-0.035em;margin:0 0 8px">Bạn muốn làm gì?</h1>
+      <p style="font-size:15px;color:var(--tx-3);margin:0 0 32px">Chọn một mục tiêu, hệ thống sẽ dẫn bạn từng bước</p>
+    </div>
+    <div class="wz-grid">
+      <div class="wz-card" onclick="goTeach()">
+        <div class="wz-ic"><i class="ti ti-eye"></i></div>
+        <p class="wz-ct">Dạy máy nhận diện một vật</p>
+        <p class="wz-cd">Ví dụ: nhận ra sản phẩm lỗi, đếm xe, phát hiện người đội mũ bảo hiểm</p>
+      </div>
+      <div class="wz-card" onclick="location.href='/models/try'">
+        <div class="wz-ic"><i class="ti ti-photo-check"></i></div>
+        <p class="wz-ct">Thử một mô hình đã có</p>
+        <p class="wz-cd">Thả ảnh vào, xem mô hình nhận diện được gì</p>
+      </div>
+      <div class="wz-card" onclick="location.href='/minio/'">
+        <div class="wz-ic"><i class="ti ti-folder"></i></div>
+        <p class="wz-ct">Quản lý ảnh và dữ liệu</p>
+        <p class="wz-cd">Xem, tải lên, sắp xếp các bộ ảnh đã có</p>
+      </div>
+      <div class="wz-card" onclick="location.href='/dashboard/'">
+        <div class="wz-ic"><i class="ti ti-tools"></i></div>
+        <p class="wz-ct">Chế độ chuyên gia</p>
+        <p class="wz-cd">Vào thẳng các công cụ đầy đủ, cho người đã quen</p>
+      </div>
+    </div>
+    <div class="wz-try" onclick="useSample()">
+      <i class="ti ti-sparkles" aria-hidden="true"></i>
+      <div><div style="font-size:14px;font-weight:500">Chưa có ảnh? Dùng dữ liệu mẫu để thử ngay</div>
+      <div style="font-size:12px;color:var(--tx-3)">Xem toàn bộ quá trình chạy trong vài phút</div></div>
+    </div>
+  </div>
+
+  <div id="teach" style="display:none;max-width:640px;margin:0 auto">
+    <div class="back" onclick="goWelcome()"><i class="ti ti-arrow-left"></i>Quay lại</div>
+    <h1 style="font-size:24px;font-weight:600;letter-spacing:-0.03em;margin:0 0 4px">Dạy máy nhận diện vật thể</h1>
+    <p style="font-size:14px;color:var(--tx-3);margin:0 0 26px">Làm theo 4 bước. Hệ thống tự lo phần kỹ thuật.</p>
+
+    <div class="step">
+      <div class="snum" id="n1">1</div>
+      <div class="sbody"><p class="sst">Đưa ảnh vào</p>
+        <p class="ssd" id="d1">Tải ảnh bạn muốn dạy máy nhận diện</p>
+        <button class="btn primary" onclick="location.href='/minio/'">Mở kho ảnh</button></div>
+    </div>
+    <div class="step">
+      <div class="snum wait" id="n2">2</div>
+      <div class="sbody"><p class="sst">Chỉ cho máy vật cần nhận</p>
+        <p class="ssd">Khoanh vùng vật thể trên ảnh — kéo chuột, không cần học công cụ</p>
+        <button class="btn" onclick="location.href='/label/'">Mở công cụ khoanh</button></div>
+    </div>
+    <div class="step">
+      <div class="snum wait" id="n3">3</div>
+      <div class="sbody"><p class="sst">Máy học</p>
+        <p class="ssd" id="d3">Bấm một nút, máy sẽ tự học từ ảnh của bạn</p>
+        <div class="sprog" id="prog3" style="display:none"><div class="sfill" id="fill3" style="width:0"></div></div>
+        <button class="btn primary" id="btn3" onclick="quickTrain()">Bắt đầu dạy máy</button></div>
+    </div>
+    <div class="step">
+      <div class="snum wait" id="n4">4</div>
+      <div class="sbody"><p class="sst">Dùng thử</p>
+        <p class="ssd">Khi máy học xong, thả ảnh mới vào để xem mô hình nhận diện được gì</p>
+        <button class="btn" onclick="location.href='/models/try'">Thử mô hình</button></div>
+    </div>
+
+    <div style="margin-top:18px;text-align:right">
+      <button class="btn" onclick="location.href='/train/'">Tùy chọn nâng cao</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function toast(m){const t=document.getElementById("toast");t.textContent=m;
+  t.classList.add("show");setTimeout(()=>t.classList.remove("show"),3000);}
+
+function goTeach(){document.getElementById("welcome").style.display="none";
+  document.getElementById("teach").style.display="block";refreshState();}
+function goWelcome(){document.getElementById("teach").style.display="none";
+  document.getElementById("welcome").style.display="block";}
+
+let imageCount=0;
+
+async function refreshState(){
+  try{
+    const s=await(await fetch("state")).json();
+    imageCount=s.images||0;
+    if(imageCount>0){
+      document.getElementById("n1").className="snum done";
+      document.getElementById("n1").innerHTML='<i class="ti ti-check" style="font-size:15px"></i>';
+      document.getElementById("d1").textContent=`Đã có ${imageCount} tấm ảnh`;
+    }
+    if(s.running_jobs>0){
+      document.getElementById("n3").className="snum active";
+      document.getElementById("d3").textContent="Máy đang học từ ảnh của bạn…";
+      document.getElementById("prog3").style.display="block";
+      document.getElementById("btn3").style.display="none";
+    }
+    if(s.ready){
+      document.getElementById("n4").className="snum done";
+      document.getElementById("n4").innerHTML='<i class="ti ti-check" style="font-size:15px"></i>';
+    }
+  }catch(e){}
+}
+
+async function quickTrain(){
+  const btn=document.getElementById("btn3");
+  btn.disabled=true;btn.textContent="Đang bắt đầu…";
+  try{
+    const r=await fetch("quick-train",{method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name:"mo-hinh-cua-toi",image_count:imageCount})});
+    const d=await r.json();
+    if(d.started){
+      toast(d.message||"Máy đang học");
+      document.getElementById("n3").className="snum active";
+      document.getElementById("d3").textContent="Máy đang học từ ảnh của bạn — việc này mất một lúc";
+      document.getElementById("prog3").style.display="block";
+      btn.style.display="none";
+      pollProgress(d.job_id);
+    }else{
+      toast("Chưa bắt đầu được. Hãy chắc đã có ảnh và đã khoanh vùng.");
+      btn.disabled=false;btn.textContent="Bắt đầu dạy máy";
+    }
+  }catch(e){toast("Lỗi kết nối");btn.disabled=false;btn.textContent="Bắt đầu dạy máy";}
+}
+
+async function pollProgress(jobId){
+  if(!jobId)return;
+  const tick=async()=>{
+    try{
+      const j=await(await fetch(`/train/jobs/${jobId}`)).json();
+      const pct=Math.round((j.progress||0)*100);
+      document.getElementById("fill3").style.width=pct+"%";
+      if(j.status==="done"){
+        document.getElementById("n3").className="snum done";
+        document.getElementById("n3").innerHTML='<i class="ti ti-check" style="font-size:15px"></i>';
+        document.getElementById("d3").textContent="Máy đã học xong!";
+        document.getElementById("n4").className="snum active";
+        toast("Xong! Mô hình đã sẵn sàng. Bấm 'Xem mô hình' để dùng.");
+        return;
+      }
+      if(j.status==="failed"){
+        document.getElementById("d3").textContent="Có lỗi khi học. Thử lại hoặc vào chế độ chuyên gia.";
+        return;
+      }
+      setTimeout(tick,3000);
+    }catch(e){setTimeout(tick,5000);}
+  };
+  tick();
+}
+
+async function useSample(){
+  toast("Đang chuẩn bị dữ liệu mẫu…");
+  try{
+    const d=await(await fetch("use-sample",{method:"POST"})).json();
+    toast(d.message||"Sẵn sàng. Chọn 'Dạy máy nhận diện' để thử.");
+    setTimeout(goTeach,1200);
+  }catch(e){toast("Chưa chuẩn bị được dữ liệu mẫu");}
+}
+</script>
+</body>
+</html>

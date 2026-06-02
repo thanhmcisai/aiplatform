@@ -1,0 +1,192 @@
+# =============================================================
+#  Caddy reverse proxy + SSO (oauth2-proxy/Keycloak)
+#  Gom mọi service về CỔNG 80, chặn truy cập chưa đăng nhập,
+#  gỡ X-Frame-Options để nhúng iframe, inject bản dịch CVAT.
+#
+#  http://localhost
+#    /            → shell hợp nhất (cần đăng nhập)
+#    /auth/*      → Keycloak (trang đăng nhập)
+#    /oauth2/*    → oauth2-proxy (xử lý callback)
+#    /cvat/*      → CVAT  (+ script dịch tiếng Việt)
+#    /mlflow/*    → MLflow
+#    /minio/*     → MinIO console
+#    /dashboard/* → dashboard tổng quan
+#    /api/*       → BentoML serving (không chặn SSO, dùng cho máy gọi máy)
+# =============================================================
+
+:80 {
+	encode gzip
+
+	# ---- Keycloak: KHÔNG chặn (đây là nơi đăng nhập) ----
+	handle /auth/* {
+		reverse_proxy keycloak:8080
+	}
+
+	# ---- oauth2-proxy endpoints (callback, sign_in...) ----
+	handle /oauth2/* {
+		reverse_proxy oauth2-proxy:4180
+	}
+
+	# ---- Cổng chặn SSO: mọi route khác phải qua đây ----
+	# forward_auth hỏi oauth2-proxy "đã đăng nhập chưa?"
+	# Nếu chưa (401/302) → chuyển tới Keycloak.
+	# Không chặn các route xác thực & API máy-gọi-máy (tránh vòng lặp redirect)
+	@protected not path /oauth2/* /auth/* /api /api/*
+	forward_auth @protected oauth2-proxy:4180 {
+		uri /oauth2/auth
+		copy_headers X-Auth-Request-User X-Auth-Request-Email X-Auth-Request-Access-Token
+		# Chưa đăng nhập (401) → chuyển tới trang login của oauth2-proxy/Keycloak
+		@unauth status 401
+		handle_response @unauth {
+			redir * /oauth2/sign_in?rd={http.request.uri}
+		}
+	}
+
+	# ---- BentoML API: bỏ chặn SSO (máy gọi máy dùng API key riêng) ----
+	# Bare /api (không dấu /) → /api/ để mở được Swagger UI của BentoML.
+	handle /api {
+		redir * /api/ permanent
+	}
+	handle_path /api/* {
+		reverse_proxy bentoml:3000
+	}
+
+	# ---- Trang chủ: wizard thân thiện cho người mới ----
+	handle / {
+		reverse_proxy wizard:8900 {
+			header_down -X-Frame-Options
+		}
+	}
+
+	# ---- wizard: các route phụ trợ (state, quick-train...) ----
+	handle /state {
+		reverse_proxy wizard:8900
+	}
+	handle /quick-train {
+		reverse_proxy wizard:8900
+	}
+	handle /use-sample {
+		reverse_proxy wizard:8900
+	}
+	# KHÔNG strip prefix: wizard mount static tại /wizard-ui nên cần giữ nguyên path
+	handle /wizard-ui/* {
+		reverse_proxy wizard:8900
+	}
+
+	# ---- Shell chuyên gia (sidebar đầy đủ) chuyển sang /studio/ ----
+	handle /studio {
+		root * /srv/shell
+		file_server
+	}
+	handle_path /studio/* {
+		root * /srv/shell
+		file_server
+	}
+
+	# ---- Script dịch CVAT (phục vụ tĩnh) ----
+	handle /i18n/* {
+		root * /srv
+		file_server
+	}
+
+	# ---- Dashboard ----
+	handle_path /dashboard/* {
+		reverse_proxy dashboard:8000 {
+			header_down -X-Frame-Options
+		}
+	}
+
+	# ---- CVAT: chuyển hướng sang origin :8080 (UI + API + auto-login đầy đủ) ----
+	#   CVAT KHÔNG chạy được dưới sub-path /cvat/ — SPA gọi /api ở GỐC origin và
+	#   tham chiếu asset tuyệt đối, nên dưới /cvat/ nó "Cannot connect to server".
+	#   Origin riêng :8080 (do gateway dựng) mới đầy đủ /api + auto-login. Cùng IP
+	#   nên cookie phiên vẫn same-site khi CVAT nhúng trong iframe của studio shell.
+	@cvat path /cvat /cvat/*
+	handle @cvat {
+		redir * http://{env.PUBLIC_HOST}:8080/auto-login
+	}
+
+	# ---- simple-label: gán nhãn đơn giản (thay CVAT cho người mới) ----
+	handle_path /label/* {
+		reverse_proxy simple-label:8300 {
+			header_down -X-Frame-Options
+		}
+	}
+
+	# ---- dataset-api: quản lý dataset (đúng nghĩa, không chỉ file) ----
+	handle_path /datasets/* {
+		reverse_proxy dataset-api:8400 {
+			header_down -X-Frame-Options
+		}
+	}
+
+	# ---- model-api: lớp REST bọc MLflow (MLflow không phơi UI) ----
+	handle_path /models/* {
+		reverse_proxy model-api:8500 {
+			header_down -X-Frame-Options
+		}
+	}
+
+	# ---- trainer-api: trigger train/export + theo dõi job ----
+	handle_path /train/* {
+		reverse_proxy trainer-api:8800 {
+			header_down -X-Frame-Options
+		}
+	}
+
+	# ---- minio-api: UI duyệt dữ liệu (bọc S3) ----
+	handle_path /minio/* {
+		reverse_proxy minio-api:8600 {
+			header_down -X-Frame-Options
+		}
+	}
+
+	# ---- kc-admin-api: UI quản lý user (bọc Keycloak Admin) ----
+	handle_path /users/* {
+		reverse_proxy kc-admin-api:8700 {
+			header_down -X-Frame-Options
+		}
+	}
+}
+
+# =============================================================
+#  Site phụ :8080 — origin CVAT hoàn chỉnh (UI + API + auto-login)
+#
+#  Image cvat-ui chuẩn CHỈ phục vụ SPA, KHÔNG proxy /api sang
+#  cvat-server (bản chuẩn dựa vào traefik để chia route). Stack này
+#  bỏ traefik nên gateway tự đảm nhận việc đó tại đây:
+#    /api,/admin,/static,/django-rq,/profiler,/git,/opencv → cvat-server
+#    còn lại                                                 → cvat-ui
+#  Kèm trang /auto-login: đăng nhập sẵn tài khoản admin rồi vào CVAT
+#  (cùng origin nên cookie phiên được set đúng).
+# =============================================================
+:8080 {
+	encode gzip
+
+	# Trang trung gian tự đăng nhập admin (cùng origin :8080)
+	handle /auto-login {
+		root * /srv/cvat
+		rewrite * /auto-login.html
+		file_server
+	}
+
+	# Lớp dịch tiếng Việt (cvat-vi.js) — index.html của cvat-ui được mount đè
+	# để nạp script này. Phục vụ từ /srv/i18n (mount ./sso/cvat-i18n vào gateway).
+	handle_path /i18n/* {
+		root * /srv/i18n
+		file_server
+	}
+
+	# Backend Django của CVAT: API + admin + static + hàng đợi
+	@cvat_backend path /api/* /admin/* /static/* /django-rq/* /profiler/* /git/* /opencv/*
+	handle @cvat_backend {
+		reverse_proxy cvat-server:8080
+	}
+
+	# Mặc định: giao diện React (SPA)
+	handle {
+		reverse_proxy cvat-ui:80 {
+			header_down -X-Frame-Options
+		}
+	}
+}
